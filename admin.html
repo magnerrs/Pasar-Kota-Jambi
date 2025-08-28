@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width" />
+  <title>Admin — Peta Pasar Tradisional Kota Jambi</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <style>
+    html, body { margin:0; padding:0; height:100%; font-family: Arial, sans-serif; }
+    #container { display:flex; height:100vh; width:100vw; }
+    #sidebar { width: 380px; background:#f8fafc; padding:16px; overflow:auto; box-shadow: 4px 0 16px rgba(0,0,0,.06); }
+    #mainContent { flex:1; position:relative; }
+    #map { position:absolute; inset:0; }
+    .btn{ background:#2563eb; color:#fff; border:none; padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .btn.secondary{ background:#10b981; }
+    .btn.warn{ background:#ef4444; }
+    .btn.ghost{ background:#e5e7eb; color:#111827; }
+    .field{ display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+    .field input{ padding:8px 10px; border:1px solid #d1d5db; border-radius:8px; }
+    .card{ border:1px solid #e5e7eb; border-radius:12px; padding:10px; margin:8px 0; background:#fff; }
+    .row{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+    small.muted{ color:#6b7280; }
+    .section-title{ margin:14px 0 6px; }
+    .klik{ cursor:pointer; }
+  </style>
+</head>
+<body>
+<div id="container">
+  <div id="sidebar">
+    <div class="row">
+      <h2 style="margin:0">Admin</h2>
+      <button id="logoutButton" class="btn warn">Logout</button>
+    </div>
+
+    <div style="margin:10px 0 14px">
+      <button class="btn" onclick="showAddForm()">Tambah Pasar</button>
+    </div>
+
+    <div id="formPasar" class="card" style="display:none;">
+      <h3 style="margin-top:4px;">Form Pasar</h3>
+      <div class="field">
+        <label>Nama Pasar</label>
+        <input type="text" id="namaPasar" placeholder="Contoh: Pasar Baru XYZ">
+      </div>
+      <div class="field">
+        <label>Alamat</label>
+        <input type="text" id="alamatPasar" placeholder="Alamat lengkap">
+      </div>
+      <div class="field">
+        <label>Kecamatan</label>
+        <input type="text" id="kecamatanPasar" placeholder="Contoh: Jambi Timur">
+      </div>
+      <div class="field">
+        <label>Latitude</label>
+        <input type="number" step="any" id="latitude" placeholder="-1.6">
+      </div>
+      <div class="field">
+        <label>Longitude</label>
+        <input type="number" step="any" id="longitude" placeholder="103.61">
+      </div>
+      <div class="field">
+        <label>URL Gambar (opsional)</label>
+        <input type="text" id="gambarPasarUrl" placeholder="images/baru.jpg atau https://...">
+      </div>
+      <div class="field">
+        <label>Produk Unggulan (opsional)</label>
+        <input type="text" id="produkPasar" placeholder="Sayur, Ikan, ...">
+      </div>
+      <div class="field">
+        <label>Fasilitas (opsional)</label>
+        <input type="text" id="fasilitasPasar" placeholder="WC, Parkir, ...">
+      </div>
+      <div class="field">
+        <label>Jumlah Unit (opsional)</label>
+        <input type="text" id="unitPasar" placeholder="contoh: 50">
+      </div>
+      <div class="field">
+        <label>Jam Operasional (opsional)</label>
+        <input type="text" id="jamPasar" placeholder="06.00 - 17.00">
+      </div>
+      <div class="row">
+        <button class="btn secondary" onclick="tambahPasarBaru()">Simpan</button>
+        <button class="btn ghost" onclick="batalForm()">Batal</button>
+      </div>
+      <small class="muted">Data tambahan disimpan ke browser (localStorage) dan otomatis terbaca oleh halaman index.</small>
+    </div>
+
+    <h3 class="section-title">Daftar Pasar Bawaan</h3>
+    <div id="listPasarBawaan"></div>
+
+    <h3 class="section-title">Daftar Pasar Tambahan (tersimpan)</h3>
+    <div id="listPasarTambahan"></div>
+  </div>
+
+  <div id="mainContent">
+    <div id="map"></div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+// ---- Default data (SAMA dengan index) ----
+const defaultDataPasar = {
+  "Pasar Rakyat Aurduri": { unit:"413", fasilitas:"Wc, Parkir", produk:"Sayur, Ikan, Daging", alamat:"Jl. Perumnas Aur duri, Penyengat rendah", jamOperasional:"06.00 - 17.00", lat:-1.6045364, lng:103.548517 },
+  "Pasar Rakyat Olak Kemang": { unit:"59", fasilitas:"Wc, Parkir, Sumur", produk:"Ikan Asin, Bumbu Dapur", alamat:"Jl. KH. Hasan Anang, Olak kemang", jamOperasional:"06.00 - 17.00", lat:-1.5842088, lng:103.6013445 },
+  "Pasar Rakyat Pasir Putih": { unit:"132", fasilitas:"Kantor, Wc, Parkir, Sumur, Ipal", produk:"Pakaian, Buah-buahan", alamat:"Jl. Rb. Siagian, Pasir putih", jamOperasional:"08.00 - 15.00", lat:-1.6245053, lng:103.6451463 },
+  "Pasar Rakyat TAC": { unit:"143", fasilitas:"Kantor, Radio, Wc, Mushollah, Parkir", produk:"Elektronik, Mainan Anak", alamat:"Jl. DR. Soemantri Brojonegoro, Sipin", jamOperasional:"05.45 - 17.00", lat:-1.6113643, lng:103.5952652 },
+  "Pasar Rakyat Talang Banjar": { unit:"931", fasilitas:"Kantor, Wc, Mushollah, Parkir, Sumur, Ipal", produk:"Sayuran Segar, Daging", alamat:"Jl. Rankayo Pingai, Talang Banjar", jamOperasional:"03.00 - 16.30", lat:-1.5990143, lng:103.6360335 },
+  "Pasar Induk Talang Gulo": { unit:"179", fasilitas:"Kantor, Wc, Mushollah, Parkir, Sumur, Penginapan", produk:"Ikan, Buah Lokal", alamat:"Jl. Lingkar Selatan, Kenali Asam Bawah", jamOperasional:"24 jam", lat:-1.6712194, lng:103.6058066 },
+  "Pasar Tematik Kebun Handil": { unit:"171", fasilitas:"Kantor, Wc, Mushollah, Parkir", produk:"Pakaian, Peralatan Rumah Tangga", alamat:"Jl. D.I. Panjaitan, Handil Jaya", jamOperasional:"06.00 - 17.00", lat:-1.6198756, lng:103.6182028 },
+  "Pasar Tematik Buah-buahan": { unit:"37", fasilitas:"Wc", produk:"Rempah, Ikan Air Tawar", alamat:"Jl. Ciptomangun Kusumo, Pasar", jamOperasional:"24 jam", lat:-1.5943192, lng:103.6168144 },
+  "Pasar Sitimang": { unit:"10", fasilitas:"Wc", produk:"Buah, Sayur, Kebutuhan Pokok", alamat:"Jl. Samratulangi, Pasar", jamOperasional:"09.00 - 16.30", lat:-1.5913102, lng:103.615754 }
+};
+
+// ---- Storage helpers ----
+const STORAGE_KEY = 'pasarList';
+function loadTambahan(){ try{ return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }catch(e){ return []; } }
+function saveTambahan(list){ localStorage.setItem(STORAGE_KEY, JSON.stringify(list)); }
+
+// ---- Map ----
+const map = L.map('map').setView([-1.607, 103.615], 12);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{ attribution:'&copy; OpenStreetMap contributors' }).addTo(map);
+const layerBawaan = L.layerGroup().addTo(map);
+const layerTambahan = L.layerGroup().addTo(map);
+
+// Keep references to default markers to open popups on click from list
+const defaultMarkers = {};
+
+// ---- Renderers ----
+function renderBawaan(){
+  const c = document.getElementById('listPasarBawaan');
+  c.innerHTML = '';
+  layerBawaan.clearLayers();
+  Object.entries(defaultDataPasar).forEach(([nama, p])=>{
+    const el = document.createElement('div');
+    el.className='card klik';
+    el.setAttribute('data-goto', nama);
+    el.innerHTML = `
+      <div class="row">
+        <div>
+          <strong>${nama}</strong><br>
+          <small class="muted">${p.alamat}</small>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button class="btn ghost" data-dup="${nama}">Duplikat & Edit</button>
+        </div>
+      </div>`;
+    c.appendChild(el);
+
+    if (typeof p.lat==='number' && typeof p.lng==='number'){
+      const m = L.marker([p.lat,p.lng]).addTo(layerBawaan).bindPopup(`<strong>${nama}</strong><br>${p.alamat}`);
+      defaultMarkers[nama] = m;
+    }
+  });
+
+  // focus map on click of card
+  c.querySelectorAll('[data-goto]').forEach(card=>{
+    card.addEventListener('click', (e)=>{
+      const nama = e.currentTarget.getAttribute('data-goto');
+      const p = defaultDataPasar[nama];
+      if (!p) return;
+      if (typeof p.lat==='number' && typeof p.lng==='number'){
+        map.flyTo([p.lat,p.lng], 14);
+        const m = defaultMarkers[nama];
+        if (m) { m.openPopup(); }
+      }
+    });
+  });
+
+  // duplicate default into editable form
+  c.querySelectorAll('[data-dup]').forEach(btn=>{
+    btn.addEventListener('click', (e)=>{
+      e.stopPropagation();
+      const nama = e.currentTarget.getAttribute('data-dup');
+      const p = defaultDataPasar[nama];
+      if (!p) return;
+      showAddForm({
+        nama,
+        alamat: p.alamat || '',
+        kecamatan: '', // tidak ada di default: biarkan kosong untuk diisi
+        lat: p.lat, lng: p.lng,
+        gambar: p.gambar || '',
+        produk: p.produk || '',
+        fasilitas: p.fasilitas || '',
+        unit: p.unit || '',
+        jamOperasional: p.jamOperasional || ''
+      }, null);
+    });
+  });
+}
+
+function renderTambahan(){
+  const c = document.getElementById('listPasarTambahan');
+  const list = loadTambahan();
+  c.innerHTML = '';
+  layerTambahan.clearLayers();
+  if (list.length===0){
+    c.innerHTML = '<p class="muted">Belum ada data pasar tambahan.</p>';
+    return;
+  }
+  list.forEach((p, i)=>{
+    const el = document.createElement('div');
+    el.className='card';
+    el.innerHTML = `
+      <div class="row">
+        <div class="klik" data-goto="${i}">
+          <strong>${p.nama}</strong><br>
+          <small class="muted">${p.alamat || '-'}</small><br>
+          <small class="muted">${p.kecamatan || '-'}</small>
+        </div>
+        <div class="row" style="gap:6px;">
+          <button class="btn secondary" data-edit="${i}">Edit</button>
+          <button class="btn warn" data-del="${i}">Hapus</button>
+        </div>
+      </div>
+    `;
+    c.appendChild(el);
+    if (typeof p.lat==='number' && typeof p.lng==='number'){
+      L.marker([p.lat,p.lng]).addTo(layerTambahan).bindPopup(`<strong>${p.nama}</strong><br>${p.alamat || ''}`);
+    }
+  });
+
+  // focus tambahan
+  c.querySelectorAll('[data-goto]').forEach(el=>{
+    el.addEventListener('click', (e)=>{
+      const idx = +e.currentTarget.getAttribute('data-goto');
+      const p = loadTambahan()[idx];
+      if (!p) return;
+      if (typeof p.lat==='number' && typeof p.lng==='number'){
+        map.flyTo([p.lat,p.lng], 15);
+      }
+    });
+  });
+
+  // events edit/hapus
+  c.querySelectorAll('[data-edit]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const idx = +e.currentTarget.getAttribute('data-edit');
+      const data = loadTambahan()[idx];
+      showAddForm(data, idx);
+    });
+  });
+  c.querySelectorAll('[data-del]').forEach(btn=>{
+    btn.addEventListener('click', e=>{
+      const idx = +e.currentTarget.getAttribute('data-del');
+      const list2 = loadTambahan();
+      const ok = confirm(`Hapus "${list2[idx].nama}"?`);
+      if (!ok) return;
+      list2.splice(idx,1);
+      saveTambahan(list2);
+      renderTambahan();
+    });
+  });
+}
+
+// ---- Form ----
+let editIndex = null;
+function showAddForm(data=null, idx=null){
+  document.getElementById('formPasar').style.display='block';
+  editIndex = idx;
+  document.getElementById('namaPasar').value = data?.nama || '';
+  document.getElementById('alamatPasar').value = data?.alamat || '';
+  document.getElementById('kecamatanPasar').value = data?.kecamatan || '';
+  document.getElementById('latitude').value = (typeof data?.lat==='number') ? data.lat : '';
+  document.getElementById('longitude').value = (typeof data?.lng==='number') ? data.lng : '';
+  document.getElementById('gambarPasarUrl').value = data?.gambar || '';
+  document.getElementById('produkPasar').value = data?.produk || '';
+  document.getElementById('fasilitasPasar').value = data?.fasilitas || '';
+  document.getElementById('unitPasar').value = data?.unit || '';
+  document.getElementById('jamPasar').value = data?.jamOperasional || '';
+}
+function batalForm(){
+  editIndex = null;
+  document.getElementById('formPasar').style.display='none';
+}
+
+function validNumber(n){ return typeof n==='number' && !Number.isNaN(n) && Number.isFinite(n); }
+
+function tambahPasarBaru(){
+  const nama = document.getElementById('namaPasar').value.trim();
+  const alamat = document.getElementById('alamatPasar').value.trim();
+  const kecamatan = document.getElementById('kecamatanPasar').value.trim();
+  const lat = parseFloat(document.getElementById('latitude').value);
+  const lng = parseFloat(document.getElementById('longitude').value);
+  const gambar = document.getElementById('gambarPasarUrl').value.trim();
+  const produk = document.getElementById('produkPasar').value.trim();
+  const fasilitas = document.getElementById('fasilitasPasar').value.trim();
+  const unit = document.getElementById('unitPasar').value.trim();
+  const jam = document.getElementById('jamPasar').value.trim();
+
+  if (!nama || !alamat || !kecamatan || !validNumber(lat) || !validNumber(lng)){
+    alert("Mohon isi Nama, Alamat, Kecamatan, Latitude, dan Longitude dengan benar.");
+    return;
+  }
+
+  const item = { nama, alamat, kecamatan, lat, lng };
+  if (gambar) item.gambar = gambar;
+  if (produk) item.produk = produk;
+  if (fasilitas) item.fasilitas = fasilitas;
+  if (unit) item.unit = unit;
+  if (jam) item.jamOperasional = jam;
+
+  const list = loadTambahan();
+  if (editIndex===null){
+    // jika nama sama dengan default, ini akan menjadi override di index (karena merge by key nama)
+    list.push(item);
+  } else {
+    list[editIndex] = item;
+  }
+  saveTambahan(list);
+  renderTambahan();
+  layerTambahan.clearLayers();
+  list.forEach(p=>{
+    if (typeof p.lat==='number' && typeof p.lng==='number'){
+      L.marker([p.lat,p.lng]).addTo(layerTambahan).bindPopup(`<strong>${p.nama}</strong><br>${p.alamat}`);
+    }
+  });
+  batalForm();
+  localStorage.setItem("pasarList_ping", String(Date.now()));
+  alert("Tersimpan! Halaman index akan ikut terbarui jika sedang dibuka.");
+}
+
+// ---- Logout (opsional) ----
+document.getElementById('logoutButton').addEventListener('click', ()=>{
+  localStorage.removeItem('isLoggedIn');
+  localStorage.removeItem('role');
+  location.href = 'index.html';
+});
+
+// ---- Init ----
+renderBawaan();
+renderTambahan();
+</script>
+</body>
+</html>

@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Peta Pasar Tradisional Kota Jambi — Rute Navigasi</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <!-- LRM CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.css"/>
+
+  <style>
+    html, body { height: 100%; margin: 0; }
+    #map { height: 100%; width: 100%; }
+
+    .side-panel{
+      position: absolute; right: 15px; top: 12px; z-index: 1001;
+      width: 340px; max-width: calc(100% - 24px);
+      background: #fff; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+      padding: 14px; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    .side-panel h3{ margin: 0 0 8px; }
+    .side-panel label{ font-weight: 600; font-size: 13px; }
+    .side-panel select{ width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #ccc; margin: 4px 0 10px; }
+    .meta p{ margin: 6px 0; font-size: 14px; }
+    .muted{ color:#555; }
+    .route-btn,.start-btn{
+      width:100%; padding:10px 12px; border:none; border-radius:10px; cursor:pointer;
+      background:#2563eb; color:#fff; font-weight:600; box-shadow:0 4px 10px rgba(37,99,235,.25);
+      display:none;
+    }
+    .start-btn{ margin-top: 8px; background:#059669; }
+    .start-btn.stop{ background:#ef4444; }
+
+    .login-btn{
+      position: absolute; top: 80px; left: 8px; z-index: 1002;
+      background-color: #fff; color: #007bff; border-radius: 50%;
+      width: 40px; height: 40px; display:flex; align-items:center; justify-content:center;
+      text-decoration:none; box-shadow: 0 5px 10px rgba(0,0,0,0.2); font-size: 20px;
+    }
+
+    .leaflet-pane.routePane{ z-index: 550 !important; pointer-events: none; }
+    .leaflet-pane.bufferPane{ z-index: 520 !important; pointer-events: none; }
+
+    /* User pulsing marker */
+    .pulse-marker{
+      position: relative;
+      width: 14px; height: 14px;
+      background: #10b981;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 0 2px rgba(16,185,129,0.35), 0 6px 14px rgba(0,0,0,0.25);
+    }
+    .pulse-marker::after{
+      content: "";
+      position: absolute; left: 50%; top: 50%;
+      width: 14px; height: 14px;
+      margin-left: -7px; margin-top: -7px;
+      border-radius: 50%;
+      box-shadow: 0 0 0 0 rgba(16,185,129,0.45);
+      animation: pulse-ring 1.8s infinite;
+    }
+    @keyframes pulse-ring {
+      0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.45); }
+      70%  { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+      100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+    }
+
+    /* Kotak Aspirasi */
+    #aspirasiToggle{
+      position: absolute; right: 18px; bottom: 35px; z-index: 1002;
+      background: #2462e7; color: #ffffff; border: none; border-radius: 20px;
+      padding: 15px 20px; box-shadow: 0 10px 24px rgba(0,0,0,.25);
+      display: flex; align-items: center; gap: 8px; cursor: pointer;
+    }
+    #kotakAspirasi{
+      display: none; position: absolute; right: 15px; bottom: 85px; z-index: 1002;
+      width: 340px; max-width: calc(100% - 36px);
+      background: #fff; border-radius: 14px; padding: 14px; 
+      box-shadow: 0 16px 40px rgba(0,0,0,.28); font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    }
+    #kotakAspirasi h4{ margin: 0 0 10px; }
+    #kotakAspirasi label{ font-weight: 600; font-size: 13px; }
+    #kotakAspirasi input, #kotakAspirasi select, #kotakAspirasi textarea{
+      width: 100%; border: 1px solid #d1d5db; border-radius: 10px; padding: 8px; margin: 6px 0 10px;
+    }
+    #kotakAspirasi button[type="submit"]{
+      width: 100%; background: #10b981; color: #fff; border: none; border-radius: 10px; padding: 10px;
+      font-weight: 700; cursor: pointer;
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+  <!-- EmailJS -->
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+  <script> (function(){ try{ emailjs.init("hi23EEhqnvM2lUVD_"); }catch(e){} })(); </script>
+</head>
+<body>
+  <div id="map"></div>
+  <a class="login-btn" href="login.html" title="Login Admin">👤</a>
+
+  <div class="side-panel">
+    <h3>Informasi Pasar</h3>
+    <label for="pasarSelect">Nama Pasar:</label>
+    <select id="pasarSelect">
+      <option value="">Pilih Pasar</option>
+    </select>
+    <img id="gambarPasar" alt="Foto Pasar" style="width:100%;height:180px;object-fit:cover;border-radius:10px;margin:6px 0 10px;display:none;">
+    <div class="meta">
+      <p><strong>Total Unit:</strong> <span id="unit">-</span></p>
+      <p><strong>Alamat:</strong> <span id="alamat">-</span></p>
+      <p><strong>Produk Unggulan:</strong> <span id="produk">-</span></p>
+      <p><strong>Fasilitas:</strong> <span id="fasilitas">-</span></p>
+      <p><strong>Jam Operasional:</strong> <span id="jam">-</span></p>
+      <p id="jarakRow" style="display:none;"><strong>Jarak Rute:</strong> <span id="jarak">-</span></p>
+      <p id="waktuRow" style="display:none;"><strong>Estimasi Waktu:</strong> <span id="waktu">-</span></p>
+      <p class="muted" id="tipsRow"><em>Tips:</em> pilih pasar, lalu klik “Tampilkan Rute”.</p>
+    </div>
+    <button id="btnRutePasar" class="route-btn">Tampilkan Rute</button>
+    <button id="btnMulaiNavigasi" class="start-btn">Mulai Navigasi</button>
+    <label style="display:block;margin-top:10px;font-size:13px">
+      <input type="checkbox" id="toggleVoice" checked> Aktifkan panduan suara
+    </label>
+  </div>
+
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <!-- LRM JS -->
+  <script src="https://unpkg.com/leaflet-routing-machine/dist/leaflet-routing-machine.js"></script>
+
+<script>
+// ====== Data pasar bawaan (STATIC) ======
+const defaultDataPasar = {
+  "Pasar Rakyat Aurduri": {
+    gambar: "images/1.jpg",
+    unit: "413", fasilitas: "Wc, Parkir", produk: "Sayur, Ikan, Daging",
+    alamat: "Jl. Perumnas Aur duri, Penyengat rendah", jamOperasional: "06.00 - 17.00",
+    lat:-1.6045364, lng:103.548517
+  },
+  "Pasar Rakyat Olak Kemang": {
+    gambar: "images/2.jpg",
+    unit: "59", fasilitas: "Wc, Parkir, Sumur", produk: "Ikan Asin, Bumbu Dapur",
+    alamat: "Jl. KH. Hasan Anang, Olak kemang", jamOperasional: "06.00 - 17.00",
+    lat:-1.5842088, lng:103.6013445
+  },
+  "Pasar Rakyat Pasir Putih": {
+    gambar: "images/3.jpg",
+    unit: "132", fasilitas: "Kantor, Wc, Parkir, Sumur, Ipal", produk: "Pakaian, Buah-buahan",
+    alamat: "Jl. Rb. Siagian, Pasir putih", jamOperasional: "08.00 - 15.00",
+    lat:-1.6245053, lng:103.6451463
+  },
+  "Pasar Rakyat TAC": {
+    gambar: "images/4.jpg",
+    unit: "143", fasilitas: "Kantor, Radio, Wc, Mushollah, Parkir", produk: "Elektronik, Mainan Anak",
+    alamat: "Jl. DR. Soemantri Brojonegoro, Sipin", jamOperasional: "05.45 - 17.00",
+    lat:-1.6113643, lng:103.5952652
+  },
+  "Pasar Rakyat Talang Banjar": {
+    gambar: "images/5.jpg",
+    unit: "931", fasilitas: "Kantor, Wc, Mushollah, Parkir, Sumur, Ipal", produk: "Sayuran Segar, Daging",
+    alamat: "Jl. Rankayo Pingai, Talang Banjar", jamOperasional: "03.00 - 16.30",
+    lat:-1.5990143, lng:103.6360335
+  },
+  "Pasar Induk Talang Gulo": {
+    gambar: "images/6.jpg",
+    unit: "179", fasilitas: "Kantor, Wc, Mushollah, Parkir, Sumur, Penginapan", produk: "Ikan, Buah Lokal",
+    alamat: "Jl. Lingkar Selatan, Kenali Asam Bawah", jamOperasional: "24 jam",
+    lat:-1.6712194, lng:103.6058066
+  },
+  "Pasar Tematik Kebun Handil": {
+    gambar: "images/7.jpg",
+    unit: "171", fasilitas: "Kantor, Wc, Mushollah, Parkir", produk: "Pakaian, Peralatan Rumah Tangga",
+    alamat: "Jl. D.I. Panjaitan, Handil Jaya", jamOperasional: "06.00 - 17.00",
+    lat:-1.6198756, lng:103.6182028
+  },
+  "Pasar Tematik Buah-buahan": {
+    gambar: "images/8.jpg",
+    unit: "37", fasilitas: "Wc", produk: "Rempah, Ikan Air Tawar",
+    alamat: "Jl. Ciptomangun Kusumo, Pasar", jamOperasional: "24 jam",
+    lat:-1.5943192, lng:103.6168144
+  },
+  "Pasar Sitimang": {
+    gambar: "images/9.jpg",
+    unit: "10", fasilitas: "Wc", produk: "Buah, Sayur, Kebutuhan Pokok",
+    alamat: "Jl. Samratulangi, Pasar", jamOperasional: "09.00 - 16.30",
+    lat:-1.5913102, lng:103.615754
+  }
+};
+
+// ====== Gabungkan dengan data dari Admin (localStorage) ======
+const STORAGE_KEY = 'pasarList';
+function loadUserPasar(){
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const list = raw ? JSON.parse(raw) : [];
+    const out = {};
+    list.forEach(p => {
+      if (!p || !p.nama) return;
+      out[p.nama] = {
+        gambar: p.gambar || null,
+        unit: p.unit || "-",
+        fasilitas: p.fasilitas || "-",
+        produk: p.produk || "-",
+        alamat: p.alamat || "-",
+        jamOperasional: p.jamOperasional || "-",
+        lat: (typeof p.lat === 'number') ? p.lat : null,
+        lng: (typeof p.lng === 'number') ? p.lng : null
+      };
+    });
+    return out;
+  } catch(e){ console.warn(e); return {}; }
+}
+const dataPasar = Object.assign({}, defaultDataPasar, loadUserPasar());
+
+// ====== Inisialisasi peta ======
+const defaultCenter = L.latLng(-1.607, 103.615);
+const defaultZoom = 12;
+const map = L.map("map", { zoomControl: true }).setView(defaultCenter, defaultZoom);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '&copy; OpenStreetMap contributors', maxZoom: 19, subdomains:['a','b','c']
+}).addTo(map);
+
+// Panes
+if (!map.getPane('routePane')) map.createPane('routePane');
+map.getPane('routePane').classList.add('routePane');
+if (!map.getPane('bufferPane')) map.createPane('bufferPane');
+map.getPane('bufferPane').classList.add('bufferPane');
+
+// Layers
+const bufferLayer = L.layerGroup().addTo(map);
+const BUFFER_RADIUS = 600; // meter
+
+// ===== Ikon Kustom =====
+function svgPin(colorHex, glyph){
+  const svg = encodeURIComponent(`
+    <svg xmlns='http://www.w3.org/2000/svg' width='32' height='48' viewBox='0 0 32 48'>
+      <defs><filter id='shadow' x='-50%' y='-50%' width='200%' height='200%'><feDropShadow dx='0' dy='2' stdDeviation='2' flood-color='rgba(0,0,0,0.35)'/></filter></defs>
+      <path d='M16 0C8.27 0 2 6.27 2 14c0 10.5 12.13 20.9 13.1 21.73a1.5 1.5 0 0 0 1.8 0C17.87 34.9 30 24.5 30 14 30 6.27 23.73 0 16 0z' fill='#${colorHex}' filter='url(#shadow)'/>
+      <circle cx='16' cy='14' r='6' fill='#fff'/>
+      <text x='16' y='18' text-anchor='middle' font-size='10' font-family='Arial' fill='#333'>${glyph}</text>
+    </svg>`);
+  return `data:image/svg+xml;utf8,${svg}`;
+}
+const marketIcon  = L.icon({ iconUrl: svgPin('f59e0b','🛍️'), iconSize:[32,48], iconAnchor:[16,48], tooltipAnchor:[0,-28] });
+const marketIconSel = L.icon({ iconUrl: svgPin('ef4444','🎯'), iconSize:[32,48], iconAnchor:[16,48], tooltipAnchor:[0,-28] });
+const userIcon = L.divIcon({ className:'pulse-marker', iconSize:[14,14], iconAnchor:[7,7] });
+
+// ===== Marker pasar + dropdown =====
+const pasarSelect = document.getElementById('pasarSelect');
+const markers = {};
+let selectedMarkerName = null;
+Object.keys(dataPasar).forEach(nama => {
+  const p = dataPasar[nama];
+  if (typeof p.lat === 'number' && typeof p.lng === 'number'){
+    const opt = document.createElement('option');
+    opt.value = nama; opt.textContent = nama;
+    pasarSelect.appendChild(opt);
+    markers[nama] = L.marker([p.lat, p.lng], { icon: marketIcon }).addTo(map).bindTooltip(nama);
+  }
+});
+
+const img = document.getElementById('gambarPasar');
+function updateInfo(nama){
+  const p = dataPasar[nama];
+  document.getElementById('unit').textContent = p ? (p.unit || '-') : '-';
+  document.getElementById('alamat').textContent = p ? (p.alamat || '-') : '-';
+  document.getElementById('produk').textContent = p ? (p.produk || '-') : '-';
+  document.getElementById('fasilitas').textContent = p ? (p.fasilitas || '-') : '-';
+  document.getElementById('jam').textContent = p ? (p.jamOperasional || '-') : '-';
+  document.getElementById('jarakRow').style.display = 'none';
+  document.getElementById('jarak').textContent = '-';
+  document.getElementById('waktuRow').style.display = 'none';
+  document.getElementById('waktu').textContent = '-';
+  if (p && p.gambar){ img.src = p.gambar; img.style.display='block'; } else { img.style.display='none'; }
+}
+
+const btnRute = document.getElementById('btnRutePasar');
+const btnStart = document.getElementById('btnMulaiNavigasi');
+const voiceToggleEl = document.getElementById('toggleVoice');
+
+function resetStartButton(){
+  btnStart.classList.remove('stop');
+  btnStart.textContent = 'Mulai Navigasi';
+  btnStart.style.display = 'none';
+}
+
+pasarSelect.addEventListener('change', function(){
+  const nama = this.value;
+  navActive = false;
+  resetStartButton();
+
+  if (!nama) {
+    btnRute.style.display = 'none';
+    if (selectedMarkerName && markers[selectedMarkerName]) markers[selectedMarkerName].setIcon(marketIcon);
+    selectedMarkerName = null;
+    updateInfo(nama);
+    if (routingControl) { try{ map.removeControl(routingControl); }catch(e){} routingControl=null; }
+    bufferLayer.clearLayers();
+    map.flyTo(defaultCenter, defaultZoom);
+    return;
+  }
+
+  const p = dataPasar[nama];
+  updateInfo(nama);
+  btnRute.style.display = 'block';
+
+  if (selectedMarkerName && markers[selectedMarkerName]) markers[selectedMarkerName].setIcon(marketIcon);
+  if (markers[nama]) { markers[nama].setIcon(marketIconSel); selectedMarkerName = nama; }
+
+  bufferLayer.clearLayers();
+  if (p && typeof p.lat === 'number' && typeof p.lng === 'number'){
+    L.circle([p.lat, p.lng], {
+      pane: 'bufferPane', radius: BUFFER_RADIUS, color: '#ff0000', weight: 1,
+      fillColor: '#ff0000', fillOpacity: 0.25
+    }).addTo(bufferLayer);
+    map.flyTo([p.lat, p.lng], 16);
+  }
+});
+
+// ===== Geolocation =====
+let userLatLng = null;
+let userMarker = null;
+let userCircle = null;
+
+if (navigator.geolocation) {
+  map.locate({ setView:false, watch:true, enableHighAccuracy:true });
+
+  map.on('locationfound', function(e) {
+    userLatLng = e.latlng;
+    if (!userMarker) {
+      userMarker = L.marker(e.latlng, { icon: userIcon }).addTo(map).bindTooltip("Lokasi Anda");
+    } else {
+      userMarker.setLatLng(e.latlng);
+    }
+    if (!userCircle) { userCircle = L.circle(e.latlng, { radius: e.accuracy }).addTo(map); }
+    else { userCircle.setLatLng(e.latlng); userCircle.setRadius(e.accuracy); }
+
+    // Navigasi aktif: update waypoint awal & ikuti user
+    if (navActive && routingControl) {
+      routingControl.spliceWaypoints(0, 1, L.latLng(userLatLng.lat, userLatLng.lng));
+      map.setView(userLatLng, Math.max(map.getZoom(), 16), { animate: true });
+      // Voice guidance progress
+      tryProgressVoice();
+    }
+  });
+
+  map.on('locationerror', function(e){ console.warn("Geolocation error:", e.message); });
+}
+
+// ===== Routing / Voice =====
+let routingControl = null;
+let currentRoute = null;
+let currentCoords = null;
+let currentInstructions = [];
+let instrPtr = 0;
+let navActive = false;
+let voiceEnabled = true;
+
+if (voiceToggleEl){ voiceToggleEl.addEventListener('change', ()=>{ voiceEnabled = voiceToggleEl.checked; }); }
+
+function secondsToHMS(sec){
+  sec = Math.max(0, Math.round(sec));
+  const h = Math.floor(sec/3600), m = Math.floor((sec%3600)/60), s = sec%60;
+  if (h > 0) return h + " jam " + m + " menit";
+  if (m > 0) return m + " menit";
+  return s + " dtk";
+}
+function speak(text){
+  try{
+    if(!voiceEnabled) return;
+    const utter = new SpeechSynthesisUtterance(text);
+    const prefer = (speechSynthesis.getVoices() || []).find(v=>/id|indones/i.test(v.lang));
+    if(prefer) utter.voice = prefer;
+    utter.rate = 1.0; utter.pitch = 1.0; utter.volume = 1.0;
+    speechSynthesis.cancel();
+    speechSynthesis.speak(utter);
+  }catch(e){}
+}
+function fmtMeters(m){
+  if (m >= 1000) return (m/1000).toFixed(1) + " kilometer";
+  return Math.round(m/10)*10 + " meter";
+}
+function nearestCoordIndex(latlng, coords){
+  if(!coords || !coords.length) return 0;
+  let minD = Infinity, minI = 0;
+  for(let i=0;i<coords.length;i++){
+    const c = coords[i];
+    const d = latlng.distanceTo(c);
+    if (d < minD){ minD = d; minI = i; }
+  }
+  return minI;
+}
+
+function routeToSelected(){
+  const nama = pasarSelect.value;
+  if (!L.Routing) { alert("Routing Machine belum termuat."); return; }
+  if (!nama) { alert("Pilih pasar dulu."); return; }
+  if (!userLatLng) { alert("Lokasi kamu belum terdeteksi."); return; }
+  const p = dataPasar[nama];
+  if (!p || typeof p.lat !== 'number' || typeof p.lng !== 'number') { alert("Koordinat pasar belum ada."); return; }
+
+  if (routingControl) { try{ map.removeControl(routingControl); }catch(e){} routingControl = null; }
+
+  routingControl = L.Routing.control({
+    fitSelectedRoutes: false,
+    waypoints: [ L.latLng(userLatLng.lat, userLatLng.lng), L.latLng(p.lat, p.lng) ],
+    router: L.Routing.osrmv1({ serviceUrl: 'https://router.project-osrm.org/route/v1' }),
+    routeWhileDragging: false, addWaypoints: false, showAlternatives: false,
+    show: false, collapsible: true,
+    createMarker: function(i, wp, nWps){
+      // Sembunyikan start marker (kita punya user marker sendiri)
+      if(i === 0) return null;
+      if(i === nWps - 1) return L.marker(wp.latLng, { icon: marketIconSel, draggable:false }).bindTooltip(pasarSelect.value);
+      return L.marker(wp.latLng, { icon: marketIcon, draggable:false });
+    },
+    lineOptions: { pane: 'routePane', renderer: L.svg({ pane: 'routePane' }), styles: [{ color: 'blue', opacity: 0.95, weight: 6 }] }
+  }).addTo(map);
+
+  routingControl.on('routesfound', function(e){
+    const route = e.routes && e.routes[0];
+    if (!route) return;
+    
+    currentRoute = route;
+    currentCoords = (route.coordinates || []).map(c=>L.latLng(c.lat, c.lng));
+    currentInstructions = (route.instructions || []);
+    instrPtr = 0;
+
+    const summary = route.summary;
+    const km = (summary.totalDistance / 1000).toFixed(2);
+    const eta = secondsToHMS(summary.totalTime);
+
+    document.getElementById('jarak').textContent = `${km} km`;
+    document.getElementById('jarakRow').style.display = 'block';
+    document.getElementById('waktu').textContent = eta;
+    document.getElementById('waktuRow').style.display = 'block';
+    btnStart.style.display = 'block';
+ 
+    if (!navActive) {
+    speak(`Info rute: jarak ${km} kilometer. Waktu tempuh sekitar ${eta}. Untuk panduan belokan, tekan Mulai Navigasi.`);
+  }
+  });
+}
+btnRute.addEventListener('click', routeToSelected);
+
+function tryProgressVoice(){
+  try{
+    if (!navActive || !currentCoords || !currentInstructions) return;
+    if (instrPtr >= currentInstructions.length) return;
+    const nearIdx = nearestCoordIndex(userLatLng, currentCoords);
+    const nextIdx = currentInstructions[instrPtr].index || 0;
+    if (nearIdx >= nextIdx - 3){
+      const raw = currentInstructions[instrPtr].text || '';
+      speak(raw.replace(/<[^>]*>/g,''));
+      instrPtr++;
+      if (instrPtr >= currentInstructions.length){ speak('Anda telah tiba di tujuan.'); }
+    }
+  }catch(err){}
+}
+
+// ===== Mulai/Stop Navigasi =====
+btnStart.addEventListener('click', function(){
+  if (!routingControl) { alert("Buat rute dulu."); return; }
+  if (!userLatLng) { alert("Lokasi kamu belum terdeteksi."); return; }
+
+  navActive = !navActive;
+  if (navActive){
+    this.textContent = "Stop Navigasi";
+    this.classList.add('stop');
+    map.setView(userLatLng, Math.max(map.getZoom(), 16), { animate: true });
+    routingControl.spliceWaypoints(0, 1, L.latLng(userLatLng.lat, userLatLng.lng));
+    document.getElementById('tipsRow').innerHTML = "<em>Mode navigasi aktif: peta mengikuti lokasimu.</em>";
+    if (currentInstructions && currentInstructions.length){
+  const first = currentInstructions[0].text.replace(/<[^>]*>/g,'');
+  if (window.speechSynthesis && speechSynthesis.cancel) speechSynthesis.cancel();
+  const tujuan = pasarSelect.value || 'tujuan';
+  speak(`Navigasi dimulai menuju ${tujuan}.`);
+  instrPtr = 1;
+  } 
+    } else {
+    this.textContent = "Mulai Navigasi";
+    this.classList.remove('stop');
+    document.getElementById('tipsRow').innerHTML = "<em>Tips:</em> pilih pasar, lalu klik “Tampilkan Rute”.";
+    // Stop: hapus rute & sembunyikan info + berhenti bicara
+    if (window.speechSynthesis && speechSynthesis.cancel) speechSynthesis.cancel();
+    speak('Navigasi dihentikan.');
+    if (routingControl) { try { map.removeControl(routingControl); } catch(e){} routingControl = null; }
+    document.getElementById('jarakRow').style.display = 'none';
+    document.getElementById('waktuRow').style.display = 'none';
+    btnStart.style.display = 'none';
+  }
+});
+
+// ===== Live sync jika admin menambahkan saat tab index terbuka =====
+window.addEventListener('storage', function(e){
+  if (e.key !== STORAGE_KEY) return;
+  location.reload();
+});
+</script>
+
+  <!-- Kotak Aspirasi -->
+  <div id="kotakAspirasi" aria-label="Kotak Aspirasi">
+    <form id="aspirasiForm">
+      <h4>Kotak Aspirasi</h4>
+      <label>Daerah Pasar</label>
+      <select id="daerahSelect" name="kecamatan"></select>
+
+      <label>Nama Pasar</label>
+      <select id="pasarAspirasiSelect" name="nama_pasar" disabled></select>
+
+      <label>Nama Pelapor</label>
+      <input type="text" name="nama_pelapor" placeholder="Nama Anda">
+
+      <label>Kontak</label>
+      <input type="text" name="kontak_pelapor" placeholder="No. HP / Email">
+
+      <label>Aspirasi</label>
+      <textarea name="aspirasi" rows="4" placeholder="Tulis aspirasi Anda..."></textarea>
+
+      <button type="submit">Kirim Aspirasi</button>
+    </form>
+  </div>
+  <button id="aspirasiToggle" title="Kotak Aspirasi"><i class="fas fa-comment-dots"></i><span>Kotak Aspirasi</span></button>
+
+<script>
+// ===== Kotak Aspirasi (EmailJS) =====
+(function(){
+  const toggle = document.getElementById('aspirasiToggle');
+  const box = document.getElementById('kotakAspirasi');
+  if(toggle){ toggle.addEventListener('click', ()=>{ box.style.display = (box.style.display==='block')?'none':'block'; }); }
+
+  const pasarData = {
+    "Pilih Daerah": [],
+    "Kecamatan Telanai": ["Pasar Rakyat Aurduri"],
+    "Kecamatan Danau Teluk": ["Pasar Rakyat Olak Kemang"],
+    "Kecamatan Jambi Selatan": ["Pasar Rakyat Pasir Putih"],
+    "Kecamatan Danau Sipin": ["Pasar Rakyat TAC"],
+    "Kecamatan Jambi Timur": ["Pasar Rakyat Talang Banjar"],
+    "Kecamatan Kota Baru": ["Pasar Induk Talang Gulo"],
+    "Kecamatan Jelutung": ["Pasar Tematik Kebun Handil"],
+    "Kecamatan Pasar": ["Pasar Tematik Buah-buahan", "Pasar Sitimang"]
+  };
+
+  const daerahSelect = document.getElementById('daerahSelect');
+  const pasarSelectA = document.getElementById('pasarAspirasiSelect');
+
+  Object.keys(pasarData).forEach(d=>{
+    const o = document.createElement('option'); o.value=d; o.textContent=d; daerahSelect.appendChild(o);
+  });
+  daerahSelect.addEventListener('change', ()=>{
+    const list = pasarData[daerahSelect.value] || [];
+    pasarSelectA.innerHTML = '';
+    list.forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=n; pasarSelectA.appendChild(o); });
+    pasarSelectA.disabled = list.length === 0;
+  });
+
+  daerahSelect.value = "Pilih Daerah"; pasarSelectA.disabled = true;
+
+  const form = document.getElementById('aspirasiForm');
+  form.addEventListener('submit', function(e){
+    e.preventDefault();
+    if(!window.emailjs || !emailjs.sendForm){ alert("EmailJS belum termuat."); return; }
+    emailjs.sendForm("service_pelaporan", "template_8pipxjc", this)
+      .then(()=>{ alert("Aspirasi terkirim. Terima kasih!"); form.reset(); box.style.display='none'; })
+      .catch(err=>{ console.error(err); alert("Gagal mengirim. Coba lagi ya."); });
+  });
+})();
+</script>
+</body>
+</html>
